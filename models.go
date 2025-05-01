@@ -42,11 +42,18 @@ type getRecordsResponse struct {
 }
 
 func toSimply(rec libdns.Record) dnsRecord {
+	ttl := int(rec.RR().TTL.Seconds())
+
+	if ttl <= 0 {
+		// Simply API does not accept TTL <= 0, so we set it to 300 seconds.
+		ttl = 300
+	}
+
 	switch rec := rec.(type) {
 	case libdns.MX:
 		return dnsRecord{
 			Name:     rec.Name,
-			Ttl:      int(rec.TTL.Seconds()),
+			Ttl:      ttl,
 			Data:     rec.Target,
 			Type:     rec.RR().Type,
 			Priority: &rec.Preference,
@@ -56,7 +63,7 @@ func toSimply(rec libdns.Record) dnsRecord {
 		// Simply expects priority extracted from the Data field, so we extract it here.
 		return dnsRecord{
 			Name:     rec.RR().Name,
-			Ttl:      int(rec.TTL.Seconds()),
+			Ttl:      ttl,
 			Data:     fmt.Sprintf("%d %d %s", rec.Weight, rec.Port, rec.Target),
 			Priority: &rec.Priority,
 			Type:     "SRV",
@@ -66,7 +73,7 @@ func toSimply(rec libdns.Record) dnsRecord {
 		var rr = rec.RR()
 		return dnsRecord{
 			Name: rr.Name,
-			Ttl:  int(rr.TTL.Seconds()),
+			Ttl:  ttl,
 			Data: rr.Data,
 			Type: rr.Type,
 		}

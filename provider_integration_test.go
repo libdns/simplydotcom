@@ -174,6 +174,11 @@ func generateTestRecords(prefix string) []libdns.Record {
 			TTL:  300 * time.Second,
 			Text: "v=spf1 -all",
 		},
+		libdns.TXT{
+			Name: "_acme-challenge.jellyfin",
+			TTL:  0,
+			Text: "7NKtzIBKNRv4IWWtp4B_lNIkwgj7voIAJabi9-yZVjY",
+		},
 		// SRV record
 		libdns.SRV{
 			Service:   "minecraft",
