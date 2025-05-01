@@ -1393,3 +1393,90 @@ func isMatching(record dnsRecordResponse, criteria libdns.RR) bool {
 	// For simplicity in tests, we don't check data and TTL in this helper
 	return true
 }
+
+// TestProvider_Init_MaxRetries tests the MaxRetries parsing in the init method
+func TestProvider_Init_MaxRetries(t *testing.T) {
+	tests := []struct {
+		name            string
+		maxRetriesInput string
+		expectedRetries int
+		expectError     bool
+	}{
+		{
+			name:            "Default value",
+			maxRetriesInput: "",
+			expectedRetries: 3,
+			expectError:     false,
+		},
+		{
+			name:            "Valid integer value",
+			maxRetriesInput: "5",
+			expectedRetries: 5,
+			expectError:     false,
+		},
+		{
+			name:            "Zero value",
+			maxRetriesInput: "0",
+			expectedRetries: 0,
+			expectError:     false,
+		},
+		{
+			name:            "Negative value", // Parsing should work, even if negative isn't logical
+			maxRetriesInput: "-2",
+			expectedRetries: -2,
+			expectError:     false,
+		},
+		{
+			name:            "Invalid integer value",
+			maxRetriesInput: "abc",
+			expectError:     true,
+		},
+		{
+			name:            "Large integer value",
+			maxRetriesInput: "100",
+			expectedRetries: 100,
+			expectError:     false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			p := &Provider{
+				AccountName: "test-account",
+				APIKey:      "test-key",
+				MaxRetries:  tc.maxRetriesInput,
+			}
+
+			err := p.init()
+
+			if tc.expectError {
+				if err == nil {
+					t.Errorf("expected an error but got nil")
+				}
+				// Check if client was initialized (it shouldn't be on error)
+				if p.client != nil {
+					t.Errorf("client should not be initialized on error")
+				}
+			} else {
+				if err != nil {
+					t.Errorf("unexpected error: %v", err)
+					return
+				}
+				// Check if client was initialized
+				if p.client == nil {
+					t.Errorf("client was not initialized")
+					return
+				}
+				// Check the actual maxRetries value in the initialized client
+				apiClient, ok := p.client.(*simplyApiClient)
+				if !ok {
+					t.Errorf("initialized client is not of expected type *simplyApiClient")
+					return
+				}
+				if apiClient.maxRetries != tc.expectedRetries {
+					t.Errorf("expected maxRetries to be %d, but got %d", tc.expectedRetries, apiClient.maxRetries)
+				}
+			}
+		})
+	}
+}

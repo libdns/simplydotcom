@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
 
@@ -21,21 +22,23 @@ type Provider struct {
 	BaseURL string `json:"base_url,omitempty"`
 
 	// MaxRetries is the maximum number of retries if rate limiting occurs. Default is 3.
-	MaxRetries *int `json:"max_retries,omitempty"`
+	MaxRetries string `json:"max_retries,omitempty"`
 
 	client simplyClient
 	mu     sync.Mutex // Mutex to protect concurrent access to client
 }
 
-func (p *Provider) init() {
+func (p *Provider) init() error {
 	if p.client != nil {
-		return // Already initialized
+		// Already initialized
+		return nil
 	}
 
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if p.client != nil {
-		return // Already initialized
+		// Already initialized
+		return nil
 	}
 
 	if p.BaseURL == "" {
@@ -43,8 +46,12 @@ func (p *Provider) init() {
 	}
 
 	maxRetries := 3
-	if p.MaxRetries != nil {
-		maxRetries = *p.MaxRetries
+	if p.MaxRetries != "" {
+		val, err := strconv.Atoi(p.MaxRetries)
+		if err != nil {
+			return fmt.Errorf("invalid MaxRetries value, must be an integer: %w", err)
+		}
+		maxRetries = val
 	}
 
 	p.client = &simplyApiClient{
@@ -54,11 +61,14 @@ func (p *Provider) init() {
 		maxRetries:  maxRetries,
 		httpClient:  http.DefaultClient,
 	}
+	return nil
 }
 
 // GetRecords lists all the records in the zone.
 func (p *Provider) GetRecords(ctx context.Context, zone string) ([]libdns.Record, error) {
-	p.init()
+	if err := p.init(); err != nil {
+		return nil, fmt.Errorf("failed to initialize provider: %w", err)
+	}
 
 	records, err := p.client.getDnsRecords(ctx, zone)
 	if err != nil {
@@ -78,7 +88,9 @@ func (p *Provider) GetRecords(ctx context.Context, zone string) ([]libdns.Record
 
 // AppendRecords adds records to the zone. It returns the records that were added.
 func (p *Provider) AppendRecords(ctx context.Context, zone string, records []libdns.Record) ([]libdns.Record, error) {
-	p.init()
+	if err := p.init(); err != nil {
+		return nil, fmt.Errorf("failed to initialize provider: %w", err)
+	}
 
 	// Create a map to track added record IDs for O(1) lookup
 	recordIdSet := make(map[int]struct{}, len(records))
@@ -133,7 +145,9 @@ func (p *Provider) AppendRecords(ctx context.Context, zone string, records []lib
 // WARNING: Calls to SetRecords for Simply.com are not atomic. If an error occurs, one or
 // more of the requested changes may have been applied.
 func (p *Provider) SetRecords(ctx context.Context, zone string, records []libdns.Record) ([]libdns.Record, error) {
-	p.init()
+	if err := p.init(); err != nil {
+		return nil, fmt.Errorf("failed to initialize provider: %w", err)
+	}
 
 	// Get existing records
 	existingRecords, err := p.client.getDnsRecords(ctx, zone)
@@ -176,7 +190,9 @@ func (p *Provider) SetRecords(ctx context.Context, zone string, records []libdns
 // empty. Note that this behavior does *not* apply to the [libdns.Record.Name]
 // field, which must always be specified.
 func (p *Provider) DeleteRecords(ctx context.Context, zone string, records []libdns.Record) ([]libdns.Record, error) {
-	p.init()
+	if err := p.init(); err != nil {
+		return nil, fmt.Errorf("failed to initialize provider: %w", err)
+	}
 
 	zoneRecords, err := p.client.getDnsRecords(ctx, zone)
 	if err != nil {
