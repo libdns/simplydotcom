@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
+	"sync"
 	"time"
 )
 
@@ -24,6 +26,9 @@ type simplyApiClient struct {
 	baseURL    string
 	maxRetries int
 	httpClient *http.Client
+
+	productsMu     sync.Mutex
+	productObjects map[string]string
 }
 
 // buildPath joins the base URL with the provided path segments
@@ -31,11 +36,65 @@ func (c *simplyApiClient) buildPath(segments ...string) (string, error) {
 	return url.JoinPath(c.baseURL, segments...)
 }
 
-func (c *simplyApiClient) addDnsRecord(ctx context.Context, zone string, record dnsRecord) (createRecordResponse, error) {
-	// Strip trailing dot from zone if present
-	zone = trimTrailingDot(zone)
+// buildProductPath builds the URL of the product that holds zone, followed by
+// the provided path segments. The last segment must end with a slash, as the
+// API expects a trailing slash.
+func (c *simplyApiClient) buildProductPath(ctx context.Context, zone string, segments ...string) (string, error) {
+	object, err := c.productObject(ctx, zone)
+	if err != nil {
+		return "", err
+	}
+	return c.buildPath(append([]string{"my/products", url.PathEscape(object)}, segments...)...)
+}
 
-	reqURL, err := c.buildPath("my/products", url.PathEscape(zone), "dns/records")
+// productObject returns the product object (handle) for zone. The API
+// expects the object in the path, which is the Unicode form for IDN domains,
+// so the zone is matched against the object and both the Unicode and the
+// punycode domain name of each product on the account.
+func (c *simplyApiClient) productObject(ctx context.Context, zone string) (string, error) {
+	c.productsMu.Lock()
+	defer c.productsMu.Unlock()
+
+	key := strings.ToLower(trimTrailingDot(zone))
+	if object, ok := c.productObjects[key]; ok {
+		return object, nil
+	}
+
+	reqURL, err := c.buildPath("my/products/")
+	if err != nil {
+		return "", err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
+	if err != nil {
+		return "", err
+	}
+	var response productsResponse
+	if err := c.doApiRequest(req, &response); err != nil {
+		return "", fmt.Errorf("failed to list products: %w", err)
+	}
+
+	objects := make(map[string]string, len(response.Products)*3)
+	for _, p := range response.Products {
+		objects[strings.ToLower(p.Object)] = p.Object
+	}
+	for _, p := range response.Products {
+		for _, name := range []string{p.Domain.Name, p.Domain.NameIdn} {
+			nameKey := strings.ToLower(name)
+			if _, exists := objects[nameKey]; name != "" && !exists {
+				objects[nameKey] = p.Object
+			}
+		}
+	}
+	c.productObjects = objects
+
+	if object, ok := objects[key]; ok {
+		return object, nil
+	}
+	return "", fmt.Errorf("zone %s not found on the Simply.com account", trimTrailingDot(zone))
+}
+
+func (c *simplyApiClient) addDnsRecord(ctx context.Context, zone string, record dnsRecord) (createRecordResponse, error) {
+	reqURL, err := c.buildProductPath(ctx, zone, "dns/records/")
 	if err != nil {
 		return createRecordResponse{}, err
 	}
@@ -61,11 +120,8 @@ func (c *simplyApiClient) addDnsRecord(ctx context.Context, zone string, record 
 }
 
 func (c *simplyApiClient) getDnsRecords(ctx context.Context, zone string) ([]dnsRecordResponse, error) {
-	// Strip trailing dot from zone if present
-	zone = trimTrailingDot(zone)
-
 	var result getRecordsResponse
-	reqURL, err := c.buildPath("my/products", zone, "dns/records")
+	reqURL, err := c.buildProductPath(ctx, zone, "dns/records/")
 	if err != nil {
 		return nil, err
 	}
@@ -85,10 +141,7 @@ func (c *simplyApiClient) getDnsRecords(ctx context.Context, zone string) ([]dns
 
 // deleteDnsRecord deletes a single DNS record by ID
 func (c *simplyApiClient) deleteDnsRecord(ctx context.Context, zone string, recordID int) error {
-	// Strip trailing dot from zone if present
-	zone = trimTrailingDot(zone)
-
-	reqURL, err := c.buildPath("my/products", url.PathEscape(zone), "dns/records", fmt.Sprintf("%d", recordID))
+	reqURL, err := c.buildProductPath(ctx, zone, "dns/records", fmt.Sprintf("%d/", recordID))
 	if err != nil {
 		return err
 	}
@@ -109,10 +162,7 @@ func (c *simplyApiClient) deleteDnsRecord(ctx context.Context, zone string, reco
 
 // updateDnsRecord updates a single DNS record
 func (c *simplyApiClient) updateDnsRecord(ctx context.Context, zone string, recordID int, record dnsRecord) error {
-	// Strip trailing dot from zone if present
-	zone = trimTrailingDot(zone)
-
-	reqURL, err := c.buildPath("my/products", url.PathEscape(zone), "dns/records", fmt.Sprintf("%d", recordID))
+	reqURL, err := c.buildProductPath(ctx, zone, "dns/records", fmt.Sprintf("%d/", recordID))
 	if err != nil {
 		return err
 	}
