@@ -3,7 +3,6 @@ package simplydotcom
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -21,11 +20,10 @@ type simplyClient interface {
 
 // simplyApiClient handles API communication with Simply.com
 type simplyApiClient struct {
-	accountName string
-	apiKey      string
-	baseURL     string
-	maxRetries  int
-	httpClient  *http.Client
+	apiKey     string
+	baseURL    string
+	maxRetries int
+	httpClient *http.Client
 }
 
 // buildPath joins the base URL with the provided path segments
@@ -154,8 +152,7 @@ func trimTrailingDot(s string) string {
 // specified delay up to maxRetries times.
 func (c *simplyApiClient) doApiRequest(req *http.Request, result any) error {
 	if req.Header.Get("Authorization") == "" {
-		auth := base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("%s:%s", c.accountName, c.apiKey)))
-		req.Header.Add("Authorization", fmt.Sprintf("Basic %s", auth))
+		req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", c.apiKey))
 	}
 	httpClient := c.httpClient
 	if httpClient == nil {

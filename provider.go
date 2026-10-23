@@ -13,7 +13,8 @@ import (
 
 // Provider implements the libdns interfaces for Simply.com.
 type Provider struct {
-	// AccountName is the account name of the Simply.com account. It is required.
+	// AccountName is no longer needed, as the API key identifies the account.
+	// It is ignored and only kept so that existing configurations keep working.
 	AccountName string `json:"account_name,omitempty"`
 	// APIKey is the API key for the Simply.com account. It is required.
 	APIKey string `json:"api_key,omitempty"`
@@ -55,11 +56,10 @@ func (p *Provider) init() error {
 	}
 
 	p.client = &simplyApiClient{
-		accountName: p.AccountName,
-		apiKey:      p.APIKey,
-		baseURL:     p.BaseURL,
-		maxRetries:  maxRetries,
-		httpClient:  http.DefaultClient,
+		apiKey:     p.APIKey,
+		baseURL:    p.BaseURL,
+		maxRetries: maxRetries,
+		httpClient: http.DefaultClient,
 	}
 	return nil
 }

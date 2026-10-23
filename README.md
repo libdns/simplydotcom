@@ -8,22 +8,23 @@ This package implements the [libdns](https://github.com/libdns/libdns) interface
 import "github.com/libdns/simplydotcom"
 
 provider := simplydotcom.Provider{
-	AccountName: "S123456", 
-	APIKey: "your-api-key"
+	APIKey: "your-api-key",
 }
 ```
 
 ## Configuration
 
-The provider requires two pieces of information:
+The provider requires one piece of information:
 
-- `account_name`: Your Simply.com account name (e.g. S123456)
 - `api_key`: Your Simply.com API key
+
+The API key is sent as a Bearer token and identifies the account on its own, see the [Simply.com API documentation](https://www.simply.com/en/docs/api/).
 
 The following optional configuration is supported:
 
 - `base_url`: The base URL of the Simply.com API. Defaults to `https://api.simply.com/2/`.
 - `max_retries`: The maximum number of retries to perform if being rate limited. Defaults to 3. 
+- `account_name`: No longer needed. It is still accepted so existing configurations keep working, but it is ignored.
 
 You can get your API key from your Simply.com account dashboard.
 
@@ -46,8 +47,7 @@ import (
 func main() {
 	// Initialize the provider
 	provider := simplydotcom.Provider{
-		AccountName: "S123456",
-		APIKey:      "your-api-key",
+		APIKey: "your-api-key",
 	}
 
 	// Create new records

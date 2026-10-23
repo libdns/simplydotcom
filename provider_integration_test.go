@@ -22,20 +22,18 @@ import (
 
 // Define environment variable names
 const (
-	envTestZone    = "SIMPLY_TEST_ZONE"    // The zone for testing, eg. example.com
-	envAccountName = "SIMPLY_ACCOUNT_NAME" // The account name for the Simply.com account, eg. S123456
-	envAPIKey      = "SIMPLY_API_KEY"      // The API key for the Simply.com account
+	envTestZone = "SIMPLY_TEST_ZONE" // The zone for testing, eg. example.com
+	envAPIKey   = "SIMPLY_API_KEY"   // The API key for the Simply.com account
 )
 
 func TestProvider_Integration(t *testing.T) {
 	// Check if integration tests are enabled
 	apiKey := os.Getenv(envAPIKey)
-	accountName := os.Getenv(envAccountName)
 	testZone := os.Getenv(envTestZone)
 
-	if apiKey == "" || accountName == "" || testZone == "" {
+	if apiKey == "" || testZone == "" {
 		t.Skip("Skipping integration tests. To run integration tests, set the following environment variables: " +
-			"SIMPLY_API_KEY, SIMPLY_ACCOUNT_NAME, SIMPLY_TEST_ZONE")
+			"SIMPLY_API_KEY, SIMPLY_TEST_ZONE")
 	}
 
 	// Ensure test zone ends with a dot
@@ -45,8 +43,7 @@ func TestProvider_Integration(t *testing.T) {
 
 	// Create a provider with the given credentials
 	provider := Provider{
-		APIKey:      apiKey,
-		AccountName: accountName,
+		APIKey: apiKey,
 	}
 
 	// Create a context for all operations
