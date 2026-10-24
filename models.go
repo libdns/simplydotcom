@@ -41,6 +41,17 @@ type getRecordsResponse struct {
 	simplyResponse
 }
 
+type productsResponse struct {
+	Products []struct {
+		Object string `json:"object"`
+		Domain struct {
+			Name    string `json:"name"`
+			NameIdn string `json:"name_idn"`
+		} `json:"domain"`
+	} `json:"products"`
+	simplyResponse
+}
+
 func toSimply(rec libdns.Record) dnsRecord {
 	ttl := int(rec.RR().TTL.Seconds())
 
